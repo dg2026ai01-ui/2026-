@@ -1,0 +1,283 @@
+import streamlit as st
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+st.set_page_config(
+    page_title="반응차수별 농도-시간 시각화",
+    page_icon="⚗️",
+    layout="wide",
+)
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@300;400;600&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'IBM Plex Sans KR', sans-serif;
+}
+
+.main { background-color: #0d0f14; }
+
+h1, h2, h3 { font-family: 'IBM Plex Mono', monospace; }
+
+.stApp {
+    background: #0d0f14;
+    color: #e8eaf0;
+}
+
+section[data-testid="stSidebar"] {
+    background: #13161f;
+    border-right: 1px solid #2a2d3a;
+}
+
+.metric-card {
+    background: #1a1d28;
+    border: 1px solid #2a2d3a;
+    border-radius: 8px;
+    padding: 16px 20px;
+    text-align: center;
+}
+
+.metric-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #6b7280;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.metric-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: #e8eaf0;
+}
+
+.metric-unit {
+    font-size: 12px;
+    color: #6b7280;
+    margin-left: 4px;
+}
+
+.order-tag {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+}
+
+.formula-box {
+    background: #1a1d28;
+    border: 1px solid #2a2d3a;
+    border-left: 3px solid #4f8ef7;
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: #a0aec0;
+    margin: 4px 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
+COLORS = {
+    "0차": "#4f8ef7",
+    "1차": "#34d399",
+    "2차": "#f97316",
+}
+
+with st.sidebar:
+    st.markdown("### ⚗️ 파라미터 설정")
+    st.markdown("---")
+
+    st.markdown("**초기 조건**")
+    C0 = st.slider("초기 농도 C₀ (mol/L)", 0.5, 10.0, 2.0, 0.1)
+    t_max = st.slider("최대 시간 t (s)", 10, 300, 80, 5)
+
+    st.markdown("---")
+    st.markdown("**반응속도 상수 k**")
+    k0 = st.slider("k₀ — 0차 (mol/L·s)", 0.01, 0.5, 0.05, 0.01, format="%.3f")
+    k1 = st.slider("k₁ — 1차 (1/s)",     0.01, 0.3, 0.05, 0.005, format="%.3f")
+    k2 = st.slider("k₂ — 2차 (L/mol·s)", 0.01, 0.5, 0.05, 0.01, format="%.3f")
+
+    st.markdown("---")
+    st.markdown("**표시할 반응차수**")
+    show_0 = st.checkbox("0차 반응", value=True)
+    show_1 = st.checkbox("1차 반응", value=True)
+    show_2 = st.checkbox("2차 반응", value=True)
+
+    st.markdown("---")
+    st.markdown("**추가 옵션**")
+    show_linear = st.checkbox("선형화 그래프 표시", value=True)
+    show_half = st.checkbox("반감기 수직선 표시", value=True)
+
+st.markdown("## 반응차수별 농도-시간 곡선")
+st.markdown(
+    "슬라이더로 파라미터를 조절하며 0차 / 1차 / 2차 반응의 농도 변화를 실시간으로 비교합니다.",
+    unsafe_allow_html=False,
+)
+st.markdown("")
+
+t = np.linspace(0, t_max, 500)
+
+C_0 = np.maximum(C0 - k0 * t, 0)
+C_1 = C0 * np.exp(-k1 * t)
+C_2 = C0 / (1 + k2 * C0 * t)
+
+t_half_0 = C0 / (2 * k0)
+t_half_1 = np.log(2) / k1
+t_half_2 = 1 / (k2 * C0)
+
+def fmt_half(th, tmax):
+    if th > tmax:
+        return f"> {tmax} s"
+    return f"{th:.1f} s"
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label" style="color:{COLORS['0차']}">0차 반감기 t½</div>
+        <div class="metric-value">{fmt_half(t_half_0, t_max)}</div>
+        <div class="metric-label" style="margin-top:8px">C₀/2k₀</div>
+    </div>""", unsafe_allow_html=True)
+
+with col2:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label" style="color:{COLORS['1차']}">1차 반감기 t½</div>
+        <div class="metric-value">{fmt_half(t_half_1, t_max)}</div>
+        <div class="metric-label" style="margin-top:8px">ln2 / k₁</div>
+    </div>""", unsafe_allow_html=True)
+
+with col3:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label" style="color:{COLORS['2차']}">2차 반감기 t½</div>
+        <div class="metric-value">{fmt_half(t_half_2, t_max)}</div>
+        <div class="metric-label" style="margin-top:8px">1 / k₂C₀</div>
+    </div>""", unsafe_allow_html=True)
+
+st.markdown("")
+
+if show_linear:
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("농도-시간 곡선  C vs t", "선형화 그래프"),
+        horizontal_spacing=0.10,
+    )
+else:
+    fig = make_subplots(rows=1, cols=1)
+
+plot_cfg = [
+    ("0차", show_0, C_0, C_0,         t,       "C vs t (0차)"),
+    ("1차", show_1, C_1, np.log(C_1), t,       "ln(C) vs t (1차)"),
+    ("2차", show_2, C_2, 1/C_2,       t,       "1/C vs t (2차)"),
+]
+
+for order, visible, C_arr, lin_arr, t_arr, _ in plot_cfg:
+    if not visible:
+        continue
+    color = COLORS[order]
+
+    fig.add_trace(
+        go.Scatter(
+            x=t_arr, y=C_arr,
+            mode="lines",
+            name=f"{order} 반응",
+            line=dict(color=color, width=2.5),
+            hovertemplate="t = %{x:.1f} s<br>C = %{y:.4f} mol/L<extra>" + f"{order} 반응</extra>",
+        ),
+        row=1, col=1,
+    )
+
+    if show_half:
+        th = {"0차": t_half_0, "1차": t_half_1, "2차": t_half_2}[order]
+        if th <= t_max:
+            fig.add_vline(
+                x=th, line_dash="dot", line_color=color,
+                line_width=1, opacity=0.5, row=1, col=1,
+                annotation_text=f"t½={th:.1f}s",
+                annotation_font_color=color,
+                annotation_font_size=11,
+            )
+
+    if show_linear:
+        lin_labels = {"0차": "C (0차)", "1차": "ln(C) (1차)", "2차": "1/C (2차)"}
+        fig.add_trace(
+            go.Scatter(
+                x=t_arr, y=lin_arr,
+                mode="lines",
+                name=f"{order} 선형",
+                line=dict(color=color, width=2, dash="solid"),
+                showlegend=False,
+                hovertemplate="t = %{x:.1f} s<br>" + lin_labels[order] + " = %{y:.4f}<extra>" + f"{order} 선형화</extra>",
+            ),
+            row=1, col=2,
+        )
+
+PLOT_BG   = "#13161f"
+PAPER_BG  = "#0d0f14"
+GRID_CLR  = "#1f2232"
+TICK_CLR  = "#6b7280"
+TITLE_CLR = "#9ca3af"
+
+axis_style = dict(
+    gridcolor=GRID_CLR, gridwidth=1,
+    linecolor="#2a2d3a", linewidth=1,
+    tickfont=dict(color=TICK_CLR, size=11, family="IBM Plex Mono"),
+    title_font=dict(color=TITLE_CLR, size=12, family="IBM Plex Mono"),
+    zeroline=False,
+)
+
+fig.update_layout(
+    paper_bgcolor=PAPER_BG,
+    plot_bgcolor=PLOT_BG,
+    font=dict(family="IBM Plex Sans KR", color="#e8eaf0"),
+    legend=dict(
+        bgcolor="#1a1d28",
+        bordercolor="#2a2d3a",
+        borderwidth=1,
+        font=dict(size=12, family="IBM Plex Mono", color="#e8eaf0"),
+        x=0.01, y=0.99,
+    ),
+    margin=dict(t=50, b=40, l=20, r=20),
+    height=440,
+    hovermode="x unified",
+    hoverlabel=dict(
+        bgcolor="#1a1d28",
+        bordercolor="#2a2d3a",
+        font_color="#e8eaf0",
+        font_family="IBM Plex Mono",
+    ),
+)
+
+fig.update_xaxes(title_text="시간 t (s)", **axis_style)
+fig.update_yaxes(title_text="농도 C (mol/L)", **axis_style, row=1, col=1)
+
+if show_linear:
+    lin_ytitle = "선형화 값"
+    fig.update_yaxes(title_text=lin_ytitle, **axis_style, row=1, col=2)
+    for ann in fig.layout.annotations:
+        ann.font.color = TITLE_CLR
+        ann.font.family = "IBM Plex Mono"
+        ann.font.size = 13
+
+st.plotly_chart(fig, use_container_width=True)
+
+st.markdown("---")
+st.markdown("**적분 속도식 (Integrated Rate Laws)**")
+
+fcol1, fcol2, fcol3 = st.columns(3)
+with fcol1:
+    st.markdown(f'<div class="formula-box">0차&nbsp;&nbsp; C = C₀ − k₀·t<br>선형화: C vs t (기울기 = −k₀)</div>', unsafe_allow_html=True)
+with fcol2:
+    st.markdown(f'<div class="formula-box">1차&nbsp;&nbsp; C = C₀·e^(−k₁t)<br>선형화: ln(C) vs t (기울기 = −k₁)</div>', unsafe_allow_html=True)
+with fcol3:
+    st.markdown(f'<div class="formula-box">2차&nbsp;&nbsp; 1/C = 1/C₀ + k₂·t<br>선형화: 1/C vs t (기울기 = k₂)</div>', unsafe_allow_html=True)
